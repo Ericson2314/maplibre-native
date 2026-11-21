@@ -1060,8 +1060,7 @@ if (MLN_TEXT_SHAPING_HARFBUZZ)
         mbgl-core
         PRIVATE MLN_TEXT_SHAPING_HARFBUZZ=1
     )
-    include(${PROJECT_SOURCE_DIR}/vendor/freetype.cmake)
-    include(${PROJECT_SOURCE_DIR}/vendor/harfbuzz.cmake)
+    include(${PROJECT_SOURCE_DIR}/cmake/dependency/harfbuzz.cmake)
 
     target_include_directories(
         mbgl-core SYSTEM
@@ -1126,7 +1125,7 @@ target_include_directories(
 mln_install_headers(DIRECTORIES ${PROJECT_SOURCE_DIR}/include/)
 
 include(${PROJECT_SOURCE_DIR}/vendor/args.cmake)
-include(${PROJECT_SOURCE_DIR}/vendor/boost.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/dependency/boost.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/csscolorparser.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/earcut.hpp.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/eternal.cmake)
@@ -1159,7 +1158,7 @@ target_link_libraries(
         MapLibreNative::Base::geojson-vt-cpp
         MapLibreNative::Base::cheap-ruler-cpp
         mbgl-compiler-options
-        mbgl-vendor-boost
+        mbgl-boost
         mbgl-vendor-earcut.hpp
         mbgl-vendor-eternal
         mbgl-vendor-parsedate
@@ -1201,7 +1200,6 @@ set(EXPORT_TARGETS
     mbgl-vendor-supercluster
     maplibre-native-base-variant
     mbgl-compiler-options
-    mbgl-vendor-boost
     mbgl-vendor-earcut.hpp
     mbgl-vendor-eternal
     mbgl-vendor-metal-cpp
@@ -1216,6 +1214,9 @@ set(EXPORT_TARGETS
     mlt-cpp
     unordered_dense
 )
+if(MLN_USE_BUILTIN_BOOST)
+    list(APPEND EXPORT_TARGETS mbgl-vendor-boost)
+endif()
 
 if(MLN_USE_RUST)
     list(APPEND EXPORT_TARGETS mbgl-rustutils rustutils)
@@ -1223,7 +1224,7 @@ else()
     list(APPEND EXPORT_TARGETS mbgl-vendor-csscolorparser)
 endif()
 
-if(MLN_TEXT_SHAPING_HARFBUZZ)
+if(MLN_TEXT_SHAPING_HARFBUZZ AND MLN_USE_BUILTIN_HARFBUZZ)
     list(APPEND EXPORT_TARGETS mbgl-freetype mbgl-harfbuzz)
 endif()
 
@@ -1246,7 +1247,7 @@ if(_can_export)
 endif()
 
 if(MLN_WITH_VULKAN)
-    include(${PROJECT_SOURCE_DIR}/vendor/glslang.cmake)
+    include(${PROJECT_SOURCE_DIR}/cmake/dependency/glslang.cmake)
     include(${PROJECT_SOURCE_DIR}/vendor/vulkan.cmake)
 
     target_link_libraries(
