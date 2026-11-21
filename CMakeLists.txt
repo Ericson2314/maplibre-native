@@ -132,6 +132,54 @@ else()
     add_library(mbgl-core STATIC)
 endif()
 
+# The installed dependencies, under the names of the vendored ones.
+find_package(PkgConfig REQUIRED)
+find_package(Freetype REQUIRED)
+pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
+find_package(SQLite3 REQUIRED)
+find_package(Boost CONFIG REQUIRED)
+find_package(glslang CONFIG REQUIRED)
+add_library(mbgl-freetype INTERFACE IMPORTED)
+target_link_libraries(mbgl-freetype INTERFACE Freetype::Freetype)
+add_library(mbgl-harfbuzz INTERFACE IMPORTED)
+target_link_libraries(mbgl-harfbuzz INTERFACE PkgConfig::HARFBUZZ)
+add_library(mbgl-vendor-sqlite INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-sqlite INTERFACE SQLite3::SQLite3)
+add_library(mbgl-vendor-boost INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-boost INTERFACE Boost::headers)
+add_library(glslang INTERFACE IMPORTED)
+target_link_libraries(glslang INTERFACE glslang::glslang)
+# The SPIRV headers are installed under glslang/.
+get_target_property(glslang_include_dirs glslang::glslang INTERFACE_INCLUDE_DIRECTORIES)
+list(TRANSFORM glslang_include_dirs APPEND /glslang)
+add_library(SPIRV INTERFACE IMPORTED)
+target_include_directories(SPIRV INTERFACE ${glslang_include_dirs})
+target_link_libraries(SPIRV INTERFACE glslang::glslang glslang::SPIRV)
+add_library(glslang-default-resource-limits INTERFACE IMPORTED)
+target_link_libraries(glslang-default-resource-limits INTERFACE glslang::glslang-default-resource-limits)
+find_package(VulkanHeaders CONFIG REQUIRED)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+add_library(mbgl-vendor-vulkan-headers INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-vulkan-headers INTERFACE Vulkan::Headers)
+add_library(mbgl-vendor-VulkanMemoryAllocator INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-VulkanMemoryAllocator INTERFACE GPUOpen::VulkanMemoryAllocator)
+find_package(RapidJSON CONFIG REQUIRED)
+find_package(expected-lite CONFIG REQUIRED)
+find_package(unordered_dense CONFIG REQUIRED)
+find_package(nunicode CONFIG REQUIRED)
+find_path(PROTOZERO_INCLUDE_DIR protozero/pbf_reader.hpp REQUIRED)
+add_library(mbgl-vendor-rapidjson INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-rapidjson INTERFACE RapidJSON)
+target_compile_definitions(mbgl-vendor-rapidjson INTERFACE RAPIDJSON_HAS_STDSTRING=1)
+add_library(mbgl-vendor-expected-lite INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-expected-lite INTERFACE nonstd::expected-lite)
+add_library(unordered_dense INTERFACE IMPORTED)
+target_link_libraries(unordered_dense INTERFACE unordered_dense::unordered_dense)
+add_library(mbgl-vendor-protozero INTERFACE IMPORTED)
+target_include_directories(mbgl-vendor-protozero INTERFACE ${PROTOZERO_INCLUDE_DIR})
+add_library(mbgl-vendor-nunicode INTERFACE IMPORTED)
+target_link_libraries(mbgl-vendor-nunicode INTERFACE nunicode::nu)
+
 # Override visibility for mbgl-core when building amalgamation
 if(MLN_CREATE_AMALGAMATION)
     target_compile_options(mbgl-core PRIVATE
@@ -1032,16 +1080,6 @@ if (MLN_TEXT_SHAPING_HARFBUZZ)
         mbgl-core
         PRIVATE MLN_TEXT_SHAPING_HARFBUZZ=1
     )
-    include(${PROJECT_SOURCE_DIR}/vendor/freetype.cmake)
-    include(${PROJECT_SOURCE_DIR}/vendor/harfbuzz.cmake)
-
-    target_include_directories(
-        mbgl-core SYSTEM
-        PUBLIC
-            ${PROJECT_SOURCE_DIR}/vendor/freetype/include
-            ${PROJECT_SOURCE_DIR}/vendor/harfbuzz/src
-    )
-
 endif()
 
 target_sources(
@@ -1109,7 +1147,6 @@ include(${PROJECT_SOURCE_DIR}/vendor/polylabel.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/protozero.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/tracy.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/unique_resource.cmake)
-include(${PROJECT_SOURCE_DIR}/vendor/unordered_dense.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/vector-tile.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/wagyu.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/metal-cpp.cmake)
@@ -1162,7 +1199,6 @@ set(EXPORT_TARGETS
     mbgl-core
     maplibre-native-base
     maplibre-native-base-cheap-ruler-cpp
-    mbgl-vendor-expected-lite
     mbgl-vendor-kdbush
     maplibre-native-base-geojson-vt-cpp
     maplibre-native-base-geojson.hpp
@@ -1173,21 +1209,17 @@ set(EXPORT_TARGETS
     mbgl-vendor-supercluster
     maplibre-native-base-variant
     mbgl-compiler-options
-    mbgl-vendor-boost
     mbgl-vendor-earcut.hpp
     mbgl-vendor-eternal
     mbgl-vendor-filesystem
     mbgl-vendor-metal-cpp
-    mbgl-vendor-rapidjson
     mbgl-vendor-parsedate
     mbgl-vendor-pmtiles
     mbgl-vendor-polylabel
-    mbgl-vendor-protozero
     mbgl-vendor-unique_resource
     mbgl-vendor-vector-tile
     mbgl-vendor-wagyu
     mlt-cpp
-    unordered_dense
 )
 
 if(MLN_USE_RUST)
@@ -1196,9 +1228,6 @@ else()
     list(APPEND EXPORT_TARGETS mbgl-vendor-csscolorparser)
 endif()
 
-if(MLN_TEXT_SHAPING_HARFBUZZ)
-    list(APPEND EXPORT_TARGETS mbgl-freetype mbgl-harfbuzz)
-endif()
 
 if(TARGET mbgl-vendor-dawn)
     list(APPEND EXPORT_TARGETS mbgl-vendor-dawn)
@@ -1219,8 +1248,6 @@ if(_can_export)
 endif()
 
 if(MLN_WITH_VULKAN)
-    include(${PROJECT_SOURCE_DIR}/vendor/glslang.cmake)
-    include(${PROJECT_SOURCE_DIR}/vendor/vulkan.cmake)
 
     target_link_libraries(
         mbgl-core
@@ -1295,3 +1322,58 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/benchmark)
 add_subdirectory(${PROJECT_SOURCE_DIR}/render-test)
 
 include(cmake/mbgl-core-deps.cmake)
+
+# Install the core, with the vendored libraries left and the headers it
+# includes, and a pkg-config file. Its dependencies are in `Libs` and
+# `Requires`, not their `.private` forms, which need `--static`.
+include(GNUInstallDirs)
+set(libraries mbgl-core mbgl-vendor-csscolorparser mbgl-vendor-parsedate mlt-cpp)
+set(header_directories
+    include
+    platform/default/include
+    vendor/maplibre-native-base/include
+    vendor/maplibre-native-base/deps/variant/include
+    vendor/maplibre-native-base/deps/geometry.hpp/include
+    vendor/maplibre-native-base/deps/geojson.hpp/include
+)
+set(pc_libs "")
+set(pc_requires "sqlite3 harfbuzz freetype2 SPIRV-Tools")
+if(APPLE)
+    list(APPEND libraries mbgl-vendor-icu)
+    list(APPEND header_directories platform/darwin/include)
+    set(pc_platform_libs "-framework CoreGraphics -framework CoreLocation -framework CoreImage -framework SystemConfiguration -framework AppKit -framework Metal -lz")
+else()
+    set(pc_platform_libs "-lnu")
+    string(APPEND pc_requires " libcurl libjpeg libpng libuv libwebp zlib icu-uc icu-i18n")
+endif()
+list(TRANSFORM header_directories PREPEND ${PROJECT_SOURCE_DIR}/)
+list(TRANSFORM header_directories APPEND /)
+foreach(library IN LISTS libraries)
+    string(APPEND pc_libs " -l${library}")
+endforeach()
+string(APPEND pc_libs " -lglslang -lglslang-default-resource-limits -lSPIRV")
+string(APPEND pc_libs " ${pc_platform_libs}")
+
+install(TARGETS ${libraries} ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT core)
+install(
+    DIRECTORY ${header_directories}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    COMPONENT core
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+file(
+    GENERATE
+    OUTPUT ${CMAKE_BINARY_DIR}/mbgl-core.pc
+    CONTENT "prefix=${CMAKE_INSTALL_PREFIX}
+libdir=${CMAKE_INSTALL_FULL_LIBDIR}
+includedir=${CMAKE_INSTALL_FULL_INCLUDEDIR}
+
+Name: mbgl-core
+Description: The core library of MapLibre Native
+Version: 0
+Cflags: -I\${includedir}
+Libs: -L\${libdir} ${pc_libs}
+Requires: ${pc_requires}
+"
+)
+install(FILES ${CMAKE_BINARY_DIR}/mbgl-core.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig COMPONENT core)
