@@ -1219,6 +1219,7 @@ if(_can_export)
 endif()
 
 if(MLN_WITH_VULKAN)
+    include(${PROJECT_SOURCE_DIR}/vendor/glslang.cmake)
     include(${PROJECT_SOURCE_DIR}/vendor/vulkan.cmake)
 
     target_link_libraries(
