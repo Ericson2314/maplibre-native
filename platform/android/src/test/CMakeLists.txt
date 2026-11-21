@@ -1,3 +1,7 @@
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 # The test, benchmark and render test runners, as shared libraries for the
 # Android test apps.
 

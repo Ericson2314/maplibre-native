@@ -1,3 +1,7 @@
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 # The render test runner, as an executable.
 
 add_executable(

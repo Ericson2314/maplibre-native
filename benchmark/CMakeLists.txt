@@ -1,3 +1,7 @@
+if(NOT BUILD_TESTING)
+    return()
+endif()
+
 add_library(
     mbgl-benchmark STATIC EXCLUDE_FROM_ALL
     ${PROJECT_SOURCE_DIR}/benchmark/api/query.benchmark.cpp
